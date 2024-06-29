@@ -27,6 +27,14 @@ struct SensorData {
   double altitud;
   int estadoFC51;
   int luminosidad;
+  float aceleracionX;
+  float aceleracionY;
+  float aceleracionZ;
+  float NivelAgua;
+  double giroX;
+  double giroY;
+  double giroZ;
+  
 };
 
 void iniciarSistema_RRT() {
