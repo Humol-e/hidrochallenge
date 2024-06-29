@@ -1,6 +1,6 @@
   //SECRET.H
-  #define SECRET_SSID "INFINITUME06E"
-  #define SECRET_PASS "Lg5Vr8Db1z"
+  #define SECRET_SSID "ssid wifi"
+  #define SECRET_PASS "contraseña wifi"
 
   #define SECRET_CH_ID 2586198
 
