@@ -1,4 +1,4 @@
-//Codigo de Joel Grijalva 
+//Codigo de Joel Grijalva y Emiliano Castro
 
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -16,6 +16,18 @@ Adafruit_BME280 bme_RRT;
 TinyGPSPlus gps_RRT;
 SoftwareSerial gpsSerial_RRT(GPS_RX_PIN, GPS_TX_PIN);
 SoftwareSerial rylr998_RRT(RX_PIN, TX_PIN);
+
+
+struct SensorData {
+  float temperatura;
+  float humedad;
+  float presion;
+  double latitud;
+  double longitud;
+  double altitud;
+  int estadoFC51;
+  int luminosidad;
+};
 
 void iniciarSistema_RRT() {
   Serial.begin(9600);
@@ -36,30 +48,29 @@ void iniciarSistema_RRT() {
 }
 
 void leerYEnviarDatos_RRT() {
-  float temperatura_RRT = bme_RRT.readTemperature();
-  float humedad_RRT = bme_RRT.readHumidity();
-  float presion_RRT = bme_RRT.readPressure() / 100.0F;
+  SensorData data;
+  data.temperatura = bme_RRT.readTemperature();
+  data.humedad = bme_RRT.readHumidity();
+  data.presion = bme_RRT.readPressure() / 100.0F;
 
   while (gpsSerial_RRT.available() > 0) {
     gps_RRT.encode(gpsSerial_RRT.read());
   }
 
-  double latitud_RRT = gps_RRT.location.lat();
-  double longitud_RRT = gps_RRT.location.lng();
-  double altitud_RRT = gps_RRT.altitude.meters();
+  data.latitud = gps_RRT.location.lat();
+  data.longitud = gps_RRT.location.lng();
+  data.altitud = gps_RRT.altitude.meters();
 
-  int estadoFC51_RRT = digitalRead(8);
-  int luminosidad_RRT = analogRead(A0);
+  data.estadoFC51 = digitalRead(8);
+  data.luminosidad = analogRead(A0);
 
-  char datos_RRT[200];
-  snprintf(datos_RRT, sizeof(datos_RRT),
-           "BME280:%.2f,%.2f,%.2f;GPS_NEO6:%.6f,%.6f,%.2f;FC51:%d;GY302:%d",
-           temperatura_RRT, humedad_RRT, presion_RRT, latitud_RRT, longitud_RRT, altitud_RRT, estadoFC51_RRT, luminosidad_RRT);
 
   rylr998_RRT.print("AT+SEND=1,");
-  rylr998_RRT.print(strlen(datos_RRT));
+  rylr998_RRT.print(sizeof(data));
   rylr998_RRT.print(",");
-  rylr998_RRT.println(datos_RRT);
+  rylr998_RRT.write((uint8_t*)&data, sizeof(data));
+  rylr998_RRT.println();
+
 
   delay(5000);
 }
@@ -71,3 +82,4 @@ void setup() {
 void loop() {
   leerYEnviarDatos_RRT();
 }
+
