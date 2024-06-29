@@ -86,14 +86,15 @@ void loop() {
     Serial.println("No hay conexion a Internet");
     connectWiFi();
   } 
-  ThingSpeak.setField(1,1);
-  ThingSpeak.setField(2,1);
-  ThingSpeak.setField(3,1);
-  ThingSpeak.setField(4, data.temperatura);
-  ThingSpeak.setField(5,1);
-  ThingSpeak.setField(6,1);
-  ThingSpeak.setField(7,1);
-  ThingSpeak.setField(8,1);
+  ThingSpeak.setField(1,data.temperatura);
+  ThingSpeak.setField(2,data.humedad);
+  ThingSpeak.setField(3,data.presion);
+  ThingSpeak.setField(4, data.luminosidad);
+  ThingSpeak.setField(5,data.longitud);
+  ThingSpeak.setField(6,data.latitud);
+  ThingSpeak.setField(7,data.aceleracionX);
+  ThingSpeak.setField(8,data.aceleracionY);
+
   
   String status;
   ThingSpeak.setStatus(status);
