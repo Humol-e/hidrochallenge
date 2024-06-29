@@ -1,0 +1,71 @@
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
+
+#define BME280_DIRECCION_I2C 0x76
+#define RX_PIN 4
+#define TX_PIN 5
+#define GPS_RX_PIN 6
+#define GPS_TX_PIN 7
+
+Adafruit_BME280 bme_RRT;
+TinyGPSPlus gps_RRT;
+SoftwareSerial gpsSerial_RRT(GPS_RX_PIN, GPS_TX_PIN);
+SoftwareSerial rylr998_RRT(RX_PIN, TX_PIN);
+
+void iniciarSistema_RRT() {
+  Serial.begin(9600);
+  gpsSerial_RRT.begin(9600);
+  rylr998_RRT.begin(9600);
+
+  if (!bme_RRT.begin(BME280_DIRECCION_I2C)) {
+    Serial.println("error al iniciar el bme280");
+    while (1);
+  }
+
+  rylr998_RRT.println("AT+ADDRESS=1");
+  delay(1000);
+  rylr998_RRT.println("AT+NETWORKID=18");
+  delay(1000);
+  rylr998_RRT.println("AT+BAND=868000000");
+  delay(1000);
+}
+
+void leerYEnviarDatos_RRT() {
+  float temperatura_RRT = bme_RRT.readTemperature();
+  float humedad_RRT = bme_RRT.readHumidity();
+  float presion_RRT = bme_RRT.readPressure() / 100.0F;
+
+  while (gpsSerial_RRT.available() > 0) {
+    gps_RRT.encode(gpsSerial_RRT.read());
+  }
+
+  double latitud_RRT = gps_RRT.location.lat();
+  double longitud_RRT = gps_RRT.location.lng();
+  double altitud_RRT = gps_RRT.altitude.meters();
+
+  int estadoFC51_RRT = digitalRead(8);
+  int luminosidad_RRT = analogRead(A0);
+
+  char datos_RRT[200];
+  snprintf(datos_RRT, sizeof(datos_RRT),
+           "BME280:%.2f,%.2f,%.2f;GPS_NEO6:%.6f,%.6f,%.2f;FC51:%d;GY302:%d",
+           temperatura_RRT, humedad_RRT, presion_RRT, latitud_RRT, longitud_RRT, altitud_RRT, estadoFC51_RRT, luminosidad_RRT);
+
+  rylr998_RRT.print("AT+SEND=1,");
+  rylr998_RRT.print(strlen(datos_RRT));
+  rylr998_RRT.print(",");
+  rylr998_RRT.println(datos_RRT);
+
+  delay(5000);
+}
+
+void setup() {
+  iniciarSistema_RRT();
+}
+
+void loop() {
+  leerYEnviarDatos_RRT();
+}
