@@ -1,5 +1,5 @@
 //Codigo de Joel Grijalva y Emiliano Castro
-
+#include <Servo.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
@@ -7,16 +7,22 @@
 #include <TinyGPS++.h>
 
 #define BME280_DIRECCION_I2C 0x76
-#define RX_PIN 4
-#define TX_PIN 5
+#define RX_PIN 15  // Puedes cambiar estos pines según tu configuración
+#define TX_PIN 14  // Puedes cambiar estos pines según tu configuración
 #define GPS_RX_PIN 6
 #define GPS_TX_PIN 7
+#include <DHT.h>
 
+
+#define DHTPIN 4  // Set the pin connected to the DHT11 data pin
+#define DHTTYPE DHT11 // DHT 11 
+DHT dht(DHTPIN, DHT11);
+
+Servo servo1;
 Adafruit_BME280 bme_RRT;
 TinyGPSPlus gps_RRT;
 SoftwareSerial gpsSerial_RRT(GPS_RX_PIN, GPS_TX_PIN);
 SoftwareSerial rylr998_RRT(RX_PIN, TX_PIN);
-
 
 struct SensorData {
   float temperatura;
@@ -34,30 +40,45 @@ struct SensorData {
   float giroX;
   float giroY;
   float giroZ;
-  
+  char saludo[12] = "transmitido";
 };
 
-void iniciarSistema_RRT() {
-  Serial.begin(9600);
-  gpsSerial_RRT.begin(9600);
-  rylr998_RRT.begin(9600);
-
-  if (!bme_RRT.begin(BME280_DIRECCION_I2C)) {
-    Serial.println("error al iniciar el bme280");
-    while (1);
+void sendCmd(const char* cmd) {
+  rylr998_RRT.println(cmd);
+  delay(100);
+  while (rylr998_RRT.available()) {
+    Serial.write(rylr998_RRT.read());
   }
+}
 
-  rylr998_RRT.println("AT+ADDRESS=1");
+void iniciarSistema_RRT() {
+  Serial.begin(115200);  // Iniciar el monitor serial a 115200 baudios
+  rylr998_RRT.begin(115200);  // Iniciar el SoftwareSerial a 115200
+   dht.begin();
+
+  delay(3000);
+  Serial.println("Configurando parámetros antena LoRa");
   delay(1000);
-  rylr998_RRT.println("AT+NETWORKID=18");
+  sendCmd("AT+ADDRESS=1");  // Configurar el address a 1
   delay(1000);
-  rylr998_RRT.println("AT+BAND=868000000");
+  sendCmd("AT+NETWORKID=5");  // Configurar el Network ID a 5
   delay(1000);
+  sendCmd("AT+BAND?");  // Leer la frecuencia configurada
+  delay(1000);
+  sendCmd("AT+PARAMETER?");  // Leer los parámetros configurados
+  delay(1000);
+  sendCmd("AT+MODE?");  // Leer el modo configurado
+  delay(1000);
+
+    if (!bme_RRT.begin(BME280_DIRECCION_I2C)) {
+      Serial.println("Error al iniciar el BME280");
+
+    }
 }
 
 void leerYEnviarDatos_RRT() {
   SensorData data;
-  data.temperatura = bme_RRT.readTemperature();
+  data.temperatura = dht.readTemperature();
   data.humedad = bme_RRT.readHumidity();
   data.presion = bme_RRT.readPressure() / 100.0F;
 
@@ -71,7 +92,8 @@ void leerYEnviarDatos_RRT() {
 
   data.estadoFC51 = digitalRead(8);
   data.luminosidad = analogRead(A0);
-
+  Serial.print("Temperatura: ");
+  Serial.println(data.temperatura)
 
   rylr998_RRT.print("AT+SEND=1,");
   rylr998_RRT.print(sizeof(data));
@@ -79,15 +101,18 @@ void leerYEnviarDatos_RRT() {
   rylr998_RRT.write((uint8_t*)&data, sizeof(data));
   rylr998_RRT.println();
 
-
   delay(5000);
 }
 
 void setup() {
+  Serial.println("HOLAAA");
+  servo1.attach(3);
+  delay(3500);
+  servo1.write(180);
   iniciarSistema_RRT();
 }
 
 void loop() {
   leerYEnviarDatos_RRT();
+  Serial.println("Dato enviado");
 }
-
