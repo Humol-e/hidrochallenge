@@ -1,4 +1,3 @@
-
 #include <HTTPClient.h>
 #include "secret.h"
 #include <ThingSpeak.h>
@@ -10,9 +9,9 @@
 #include <Adafruit_BME280.h>
 #include <SoftwareSerial.h>
 #include <TinyGPS++.h>
+#define RX_PIN 16
+#define TX_PIN 17
 
-#define RX_PIN 4
-#define TX_PIN 5
 
 SoftwareSerial rylr998_RRT(RX_PIN, TX_PIN);
 
@@ -37,13 +36,37 @@ uint32_t channelNumber = SECRET_CH_ID;
 const char *writeAPIKey = SECRET_WRITE_APIKEY;
 float temperaturaaa = 3;
 
+
+void sendCmd(String cmd)
+{
+  Serial2.println(cmd);  // Enviar string cmd a módulo LoRa
+  delay(100);  // Esperar 500ms a que el módulo reciba el comando
+  while (Serial2.available()) {
+    Serial.print(char(Serial2.read()));  // Si hay respuesta imprimirla en el monitor serial 
+  }
+}
+
+
 void setup() {
 
-  Serial.begin(115200);
   ThingSpeak.begin(client);
   connectWiFi();
   startMillis = millis();
-  rylr998_RRT.begin(9600);
+  Serial.begin(115200);  // Iniciar el monitor serial a 115200 baudios
+  Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN);  // Iniciar el Serial2 a 115200
+  delay(3000);
+  Serial.println("Configurando parámetros antena LoRa");
+  delay(1000);
+  sendCmd("AT+ADDRESS=2");  // Configurar el address a 2
+  delay(1000);
+  sendCmd("AT+NETWORKID=5");  // Configurar el Network ID a 5
+  delay(1000);
+  sendCmd("AT+BAND?");  // Leer la frecuencia configurada
+  delay(1000);
+  sendCmd("AT+PARAMETER?");  // Leer los parámetros configurados
+  delay(1000);
+  sendCmd("AT+MODE?");  // Leer el modo configurado
+  delay(1000);
 }
 
 void loop() {
@@ -51,8 +74,8 @@ void loop() {
     if (rylr998_RRT.find("AT+RECV")) {
       SensorData datos;
       rylr998_RRT.readBytes((uint8_t*)&datos, sizeof(datos));
-
-            Serial.println(datos.temperatura);
+       Serial.println(datos.temperatura);
+       Serial.println(data.saludo);
 
     }
   }
@@ -60,7 +83,7 @@ void loop() {
  if (millis() >= timerDuration + startMillis)
   {
     sendDataToThinkSpeak();
-    delay(60000);
+    delay(30000);
     //reinicio
     startMillis = millis();
   }
@@ -86,6 +109,9 @@ void loop() {
     Serial.println("No hay conexion a Internet");
     connectWiFi();
   } 
+  Serial.print("Temperatura: ");
+  Serial.println(data.temperatura);
+
   ThingSpeak.setField(1,data.temperatura);
   ThingSpeak.setField(2,data.humedad);
   ThingSpeak.setField(3,data.presion);
@@ -95,7 +121,6 @@ void loop() {
   ThingSpeak.setField(7,data.aceleracionX);
   ThingSpeak.setField(8,data.aceleracionY);
 
-  
   String status;
   ThingSpeak.setStatus(status);
 
