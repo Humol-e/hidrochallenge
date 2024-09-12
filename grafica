@@ -1,0 +1,197 @@
+#importa las librerías
+import plotly.graph_objects as go
+import streamlit as st
+import pandas as pd
+import serial
+import serial.tools.list_ports
+import time
+import plotly.express as px
+
+st.set_page_config(layout='wide', initial_sidebar_state='expanded')
+ports = list(serial.tools.list_ports.comports())
+available_ports = [port.device for port in ports]
+
+st.title("Visualización de datos.")
+st.write("Puertos disponibles:", available_ports)
+
+selected_port = st.selectbox("Selecciona el puerto COM", available_ports)
+start_button = st.button("Iniciar Lectura")
+
+st.sidebar.header('Zona analítica `v3`')
+st.sidebar.image("D:\CODES\python\streamlit\hidrochallenge.jpg", use_column_width=True)
+# Inicializar el DataFrame 
+df = pd.DataFrame(columns=["TEMP", "HUM", "PRES","LAT","LONG","ALT","ETAPA","LUM","AGUA","MPUX","MPUY","MPUZ","GYROX","GYROY","GYROZ","MAGX","MAGY","MAGZ","TIME"])
+
+# Función para procesar una línea de datos del puerto serial
+def procesar_linea_serial(linea):
+    try:
+        parts = linea.split('|')
+        if len(parts) >= 9:  
+            # BME280: Temperatura, Humedad, Presión
+            temp_value = float(parts[0].split(':')[1].strip())
+            hum_value = float(parts[1].strip())
+            pres_value = float(parts[2].strip())
+            # GPS_NEO6: Latitud, Longitud, Altitud
+            lat_value = float(parts[3].split(':')[1].strip().replace(',', ''))
+            long_value = float(parts[4].strip().replace(',', ''))
+            alt_value = float(parts[5].strip())
+            # FC51: Etapa
+            etapa_value = float(parts[6].split(':')[1].strip())
+            # GY302: Luminosidad
+            lum_value = float(parts[7].split(':')[1].strip().split()[0]) 
+            # Nivel del Agua
+            agua_value = float(parts[8].split(':')[1].strip())
+            # Aceleraciones y giroscopio
+            mpux_value = float(parts[9].split(':')[1].strip().replace(',', ''))
+            mpuy_value = float(parts[10].strip().replace(',', ''))
+            mpuz_value = float(parts[11].strip().replace(',', ''))
+            gyrox_value = float(parts[12].strip().replace(',', ''))
+            gyroy_value = float(parts[13].strip().replace(',', ''))
+            gyroz_value = float(parts[14].strip().replace(',', ''))
+            magx_value = float(parts[15].strip().replace(',', ''))
+            magy_value = float(parts[16].strip().replace(',', ''))
+            magz_value = float(parts[17].strip().replace(',', ''))
+            tiempo = float(parts[18].strip().replace(',', ''))
+
+            return {
+                "TEMP": temp_value, "HUM": hum_value, "PRES": pres_value,
+                "LAT": lat_value, "LONG": long_value, "ALT": alt_value,
+                "ETAPA": etapa_value, "LUM": lum_value, "AGUA": agua_value,
+                "MPUX": mpux_value, "MPUY": mpuy_value, "MPUZ": mpuz_value,
+                "GYROX": gyrox_value, "GYROY": gyroy_value, "GYROZ": gyroz_value,
+                "MAGX": magx_value, "MAGY": magy_value, "MAGZ": magz_value , "TIME": tiempo
+            }
+        else:
+            st.error("Datos incompletos recibidos del puerto serial.")
+            return None
+    except Exception as e:
+        st.error(f"Error al procesar la línea de datos: {e}")
+        return None
+# Crear los placeholders de Streamlit 
+col1, col2 = st.columns(2)
+temp_placeholder = col1.empty()
+hum_placeholder = col2.empty()
+
+col3, col4 = st.columns(2)
+with col3:
+    st.markdown('### PRESION POR ALTITUD')
+chartpresalt_placeholder = col3.empty()
+
+with col4:
+    st.markdown('### TEMPERATURA POR ALTITUD')
+chart_tempalt = col4.empty()
+
+ascensotabla = st.empty()
+etapatabla = st.empty()
+aguatabla = st.empty()
+luztabla = st.empty()
+
+map_placeholder = st.empty()
+tablatodo_placeholder = st.empty()
+
+# mapa de la ubicacion del cohete
+def mapagps(lat_value, long_value):
+
+    mapa = pd.DataFrame({"lat":[lat_value], "lon":[long_value]}
+    )
+    map_placeholder.map(mapa, size=.1)
+
+
+def actualizar_vista(df):
+    # Crear gráfica de presion con respecto a la altitudd
+
+    fig = px.line(
+    df,
+    y=["PRES",],
+    x="ALT",
+    range_y=[0, 1100 ],
+    color_discrete_sequence= ["#e60000", "#0000e6"],
+    title="Datos presión con altitud.")
+    chartpresalt_placeholder.plotly_chart(fig, use_container_width=True)
+
+def mostrar_tabla(df):
+    tablatodo_placeholder.dataframe(df)  # comparar temp con alttitud
+
+def actualizar_metricas(temp_value, hum_value):
+   #El valor se manda al placeholder que se convierte en una metrica .
+    temp_placeholder.metric("Temperatura (°C)", f"{temp_value:.2f}")
+    hum_placeholder.metric("Humedad (%)", f"{hum_value:.2f}")
+
+# temperatura con respecto a la altitud
+def comptemp_y_alt(df):
+    fig2 = px.line(
+        df, y=["TEMP"], x= "ALT", range_y= [0,100] , title = "Comparar Temperatura y Altitud")
+    
+    chart_tempalt.plotly_chart(fig2, use_container_width=True)
+
+#tabla de la aceleracion vertical con respecto al tiempo
+def ascensodescenso(df):
+    fig3 = px.line(
+        df, y=["MPUY"], x= "ALT", range_y= [-10,100] , color_discrete_sequence= ["#ffff52", "#0000e6"],title = "Comparar aceleración vertical y Altitud")
+    
+    ascensotabla.plotly_chart(fig3, use_container_width=False)
+
+def niveletapa(df):
+    fig6 = px.line(
+        df, y=["ETAPA"], x= "ALT", range_y= [-1,2] ,color_discrete_sequence= ["#009900", "#0000e6"],
+    title = "Fase del cohete.")
+    
+    etapatabla.plotly_chart(fig6, use_container_width=False)
+
+def nivelluz(df):
+    figl = px.line(
+    df, y=["LUM"], x= "ALT", range_y= [-10,100] , color_discrete_sequence= ["#ffffff    ", "#0000e6"],title = "Nivel de Luz.")
+    
+    luztabla.plotly_chart(figl, use_container_width=False)
+
+def nivelagua(df):
+    figag = px.line(
+    df, y=["AGUA"], x= "ALT", range_y= [-1,12] , color_discrete_sequence= ["#000099", "#0000e6"],title = "Nivel del agua.")
+    
+    aguatabla.plotly_chart(figag, use_container_width=False)
+
+    #Lectura
+if selected_port and start_button:
+    try:
+        ser = serial.Serial(selected_port, 115200 , timeout=1)
+        while True:
+            # Leer la línea del puerto serial y decodificarla
+            line = ser.readline().decode('utf-8', errors='ignore').strip()  # Ignorar errores de decodificación
+            if line:
+                # Procesar la línea del puerto serial
+                data = procesar_linea_serial(line)
+                if data:
+                    # Añadir la nueva fila al DataFrame
+                    new_row = pd.DataFrame(data, index=[0])
+                    df = pd.concat([df, new_row], ignore_index=True)
+                    # Actualizar la vista de Streamlit
+                    temp_value = df.iloc[-1]["TEMP"]
+                    hum_value = df.iloc[-1]["HUM"]
+                    pres_value = df.iloc[-1]["PRES"]              
+                    lat_value = df.iloc[-1]["LAT"]
+                    long_value = df.iloc[-1]["LONG"]
+                    alt_value = df.iloc[-1]["ALT"]
+                    actualizar_vista(df)
+                    mostrar_tabla(df)
+                    actualizar_metricas(temp_value, hum_value)
+                    ascensodescenso(df)
+                    comptemp_y_alt(df)
+                    mapagps(lat_value, long_value)
+                    # falta etapa, luz, nivel del agua
+                    niveletapa(df)
+                    nivelluz(df)
+                    nivelagua(df)
+
+            
+            time.sleep(0.1)
+
+    except serial.SerialException as e:
+        st.error(f"Error al abrir el puerto {selected_port}: {e}")
+    except PermissionError as e:
+        st.error(f"Permiso denegado para abrir el puerto {selected_port}: {e}")
+    except Exception as e:          
+        st.error(f"Error inesperado: {e}")
+
+else:
+    st.warning("Por favor, selecciona un puerto COM disponible.")
+
